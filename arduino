@@ -1,0 +1,208 @@
+#include <Servo.h> 
+#define trigPin1 D1
+#define echoPin1 D0
+#define trigPin2 D4
+#define echoPin2 D2
+#define trigPin3 1
+#define echoPin3 3
+#define trigPin4 D8
+#define echoPin4 D7
+
+#include "HX711.h"
+#define DOUT  D5
+#define CLK  D6
+HX711 scale(DOUT, CLK);
+float calibration_factor = 396.40;
+
+
+#include <Arduino.h>
+
+#include <ESP8266WiFi.h>
+#include <ESP8266WiFiMulti.h>
+
+#include <ESP8266HTTPClient.h>
+
+#define USE_SERIAL Serial
+
+ESP8266WiFiMulti WiFiMulti;
+
+Servo servoKu;
+Servo servo2;
+
+double a,b,c,d,p,l,t,g;
+double panjang,lebar,tinggi,gram;
+int jumlah;
+double lbr = 18.6;
+double tng = 15.32;
+double pjng = 26.2;
+
+void setup (){
+    USE_SERIAL.begin(115200);
+
+    USE_SERIAL.println();
+    USE_SERIAL.println();
+    USE_SERIAL.println();
+
+    for(uint8_t t = 4; t > 0; t--) {
+        USE_SERIAL.printf("[SETUP] WAIT %d...\n", t);
+        USE_SERIAL.flush();
+        delay(1000);
+    }
+
+    WiFi.mode(WIFI_STA);
+    // ssid dan password wifi
+    WiFiMulti.addAP("Wifi.id", "balalala");
+  
+  pinMode(trigPin1, OUTPUT);
+  pinMode(echoPin1, INPUT);
+  pinMode(trigPin2, OUTPUT);
+  pinMode(echoPin2, INPUT);
+  pinMode(trigPin3, OUTPUT);
+  pinMode(echoPin3, INPUT);
+  pinMode(trigPin4, OUTPUT);
+  pinMode(echoPin4, INPUT);
+  servoKu.attach(9);
+  servo2.attach(D3);
+  
+  scale.set_scale();
+  scale.tare();
+}
+
+void loop(){
+  long duration1,duration2,duration3, duration4, duration5;
+
+  if((WiFiMulti.run() == WL_CONNECTED)) {
+    
+    HTTPClient http;
+  
+  servoKu.write(0);
+  servo2.write(0);
+  
+
+  digitalWrite(trigPin3, LOW);
+  delayMicroseconds(1);
+  digitalWrite(trigPin3, HIGH);
+  delayMicroseconds(1);
+  digitalWrite(trigPin3, LOW);
+
+  pinMode(echoPin3, INPUT);
+  duration3 = pulseIn(echoPin3, HIGH);
+  c = (duration3/2) / 29.1;
+
+
+  digitalWrite(trigPin4, LOW);
+  delayMicroseconds(1);
+  digitalWrite(trigPin4, HIGH);
+  delayMicroseconds(1);
+  digitalWrite(trigPin4, LOW);
+
+  pinMode(echoPin4, INPUT);
+  duration4 = pulseIn(echoPin4, HIGH);
+  d = (duration4/2) / 29.1;
+
+
+  l = lbr - (c+d);
+
+
+  
+
+  if(l>1){
+    servo2.write(90);
+    delay(3000);
+
+    digitalWrite(trigPin1, LOW);
+  delayMicroseconds(1);
+  digitalWrite(trigPin1, HIGH);
+  delayMicroseconds(1);
+  digitalWrite(trigPin1, LOW);
+
+  pinMode(echoPin1, INPUT);
+  duration1 = pulseIn(echoPin1, HIGH);
+  t = (duration1/2) / 29.1;
+
+
+  digitalWrite(trigPin2, LOW);
+  delayMicroseconds(1);
+  digitalWrite(trigPin2, HIGH);
+  delayMicroseconds(1);
+  digitalWrite(trigPin2, LOW);
+
+  pinMode(echoPin2, INPUT);
+  duration2 = pulseIn(echoPin2, HIGH);
+  b = (duration2/2) / 29.1;
+
+  digitalWrite(trigPin3, LOW);
+  delayMicroseconds(1);
+  digitalWrite(trigPin3, HIGH);
+  delayMicroseconds(1);
+  digitalWrite(trigPin3, LOW);
+
+  pinMode(echoPin3, INPUT);
+  duration3 = pulseIn(echoPin3, HIGH);
+  c = (duration3/2) / 29.1;
+
+
+  digitalWrite(trigPin4, LOW);
+  delayMicroseconds(1);
+  digitalWrite(trigPin4, HIGH);
+  delayMicroseconds(1);
+  digitalWrite(trigPin4, LOW);
+
+  pinMode(echoPin4, INPUT);
+  duration4 = pulseIn(echoPin4, HIGH);
+  d = (duration4/2) / 29.1;
+
+
+  p = pjng - b;
+  l = lbr - (c+d);
+  tinggi = tng - t;
+
+    
+    
+    
+    
+    delay(1000);
+
+    servo2.write(0);
+    servoKu.write(90);
+    delay(3000);
+    servoKu.write(0);
+    delay(2000);
+
+    scale.set_scale(calibration_factor);
+    g = scale.get_units(), 4;
+
+    
+    jumlah++;
+    USE_SERIAL.print("[HTTP] begin...\n");
+        // configure traged server and url
+        //ganti 192.168.43.241 dengan ip pc atau hosting
+        http.begin("http://192.168.43.241/pkl/nodemcu/data.php?jumlah="+String(jumlah)+"&panjang="+String(p)+"&lebar="+String(l)+"&tinggi="+String(tinggi)+"&berat="+String(g) ); //HTTP
+
+        USE_SERIAL.print("[HTTP] GET...\n");
+        // start connection and send HTTP header
+        int httpCode = http.GET();
+
+        // httpCode will be negative on error
+        if(httpCode > 0) {
+            // HTTP header has been send and Server response header has been handled
+            USE_SERIAL.printf("[HTTP] GET... code: %d\n", httpCode);
+
+            // file found at server
+            if(httpCode == HTTP_CODE_OK) {
+                String payload = http.getString();
+                USE_SERIAL.println(payload);
+            }
+        } 
+        
+        else {
+            USE_SERIAL.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+        }
+        
+
+        http.end();
+  }
+  delay(500);
+  }
+
+}
